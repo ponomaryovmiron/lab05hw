@@ -1,1 +1,89 @@
 [![Coverage Status](https://coveralls.io/repos/github/ponomaryovmiron/lab05hw/badge.svg)](https://coveralls.io/github/ponomaryovmiron/lab05hw)
+
+<pre>
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.cxx }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            cc: gcc-11
+            cxx: g++-11
+            coverage: ON
+
+          - os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            coverage: OFF
+
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            coverage: OFF
+
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux tools
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake lcov gcc-11 g++-11 clang
+
+      - name: Show versions
+        run: |
+          cmake --version
+          $CXX --version
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DBUILD_TESTS=ON \
+            -DCOLLECT_COVERAGE=${{ matrix.coverage }} \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+      - name: Build
+        run: |
+          cmake --build build
+
+      - name: Run tests
+        run: |
+          ctest --test-dir build --output-on-failure --verbose
+
+      - name: Generate coverage report
+        if: matrix.os == 'ubuntu-22.04' && matrix.cxx == 'g++-11'
+        run: |
+          lcov --capture --directory build --output-file coverage.info --rc geninfo_unexecuted_blocks=1
+          lcov --remove coverage.info '/usr/*' '*/third-party/*' '*/tests/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload coverage to Coveralls
+        if: matrix.os == 'ubuntu-22.04' && matrix.cxx == 'g++-11'
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage.info
+</pre>
