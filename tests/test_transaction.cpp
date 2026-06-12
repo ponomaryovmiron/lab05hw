@@ -100,3 +100,45 @@ TEST(Transaction, MakeSuccess)
 
     EXPECT_TRUE(transaction.Make(from, to, 100));
 }
+
+TEST(Transaction, MakeSuccessWithRealAccounts)
+{
+    Transaction transaction;
+    transaction.set_fee(10);
+
+    Account from(1, 200);
+    Account to(2, 0);
+
+    EXPECT_TRUE(transaction.Make(from, to, 100));
+
+    EXPECT_EQ(from.GetBalance(), 90);
+    EXPECT_EQ(to.GetBalance(), 100);
+    EXPECT_FALSE(from.IsLocked());
+    EXPECT_FALSE(to.IsLocked());
+}
+
+TEST(Transaction, NotEnoughMoneyWithRealAccounts)
+{
+    Transaction transaction;
+    transaction.set_fee(10);
+
+    Account from(1, 50);
+    Account to(2, 0);
+
+    EXPECT_FALSE(transaction.Make(from, to, 100));
+
+    EXPECT_EQ(from.GetBalance(), 50);
+    EXPECT_EQ(to.GetBalance(), 0);
+    EXPECT_FALSE(from.IsLocked());
+    EXPECT_FALSE(to.IsLocked());
+}
+
+TEST(Transaction, NegativeSumReturnsFalse)
+{
+    Transaction transaction;
+
+    Account from(1, 100);
+    Account to(2, 100);
+
+    EXPECT_FALSE(transaction.Make(from, to, -10));
+}
