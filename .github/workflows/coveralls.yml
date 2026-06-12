@@ -1,0 +1,59 @@
+name: Coveralls
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    name: Linux coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ lcov
+
+      - name: Configure
+        run: |
+          rm -rf _build
+          cmake -S . -B _build \
+            -DBUILD_TESTS=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="--coverage -O0 -g" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+
+      - name: Build
+        run: |
+          cmake --build _build
+
+      - name: Run tests
+        run: |
+          cmake --build _build --target test -- ARGS=--verbose
+
+      - name: Collect coverage
+        run: |
+          lcov --capture --directory _build --output-file coverage.info
+          lcov --remove coverage.info \
+            '/usr/*' \
+            '*/third-party/*' \
+            '*/tests/*' \
+            --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage.info
