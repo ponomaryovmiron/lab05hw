@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_TESTS "Build tests" OFF)
+option(COLLECT_COVERAGE "Collect coverage" OFF)
+
+if(COLLECT_COVERAGE)
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+endif()
 
 add_subdirectory(formatter_lib)
 add_subdirectory(formatter_ex_lib)

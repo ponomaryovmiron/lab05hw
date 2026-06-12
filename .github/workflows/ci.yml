@@ -10,103 +10,76 @@ on:
   workflow_dispatch:
 
 jobs:
-  linux:
-    name: Linux ${{ matrix.compiler }}
-    runs-on: ubuntu-latest
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.cxx }}
+    runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - compiler: gcc
+          - os: ubuntu-latest
             cc: gcc
             cxx: g++
-          - compiler: clang
+            coverage: ON
+
+          - os: ubuntu-latest
             cc: clang
             cxx: clang++
+            coverage: OFF
+
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            coverage: OFF
+
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Install tools
+      - name: Install coverage tools
+        if: matrix.os == 'ubuntu-latest' && matrix.cxx == 'g++'
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc g++ clang
+          sudo apt-get install -y lcov
 
-      - name: Configure
+      - name: Show versions
         run: |
-          rm -rf _build
-          cmake -S . -B _build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          cmake --version
+          $CXX --version
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DBUILD_TESTS=ON \
+            -DCOLLECT_COVERAGE=${{ matrix.coverage }} \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
       - name: Build
         run: |
-          cmake --build _build --config Release
+          cmake --build build
 
-      - name: Run hello_world
+      - name: Run tests
         run: |
-          ./_build/hello_world_application/hello_world
+          ctest --test-dir build --output-on-failure --verbose
 
-      - name: Run equation
+      - name: Generate coverage report
+        if: matrix.os == 'ubuntu-latest' && matrix.cxx == 'g++'
         run: |
-          echo "1 2 1" | ./_build/solver_application/equation
+          lcov --capture --directory build --output-file coverage.info --ignore-errors mismatch --rc geninfo_unexecuted_blocks=1
+          lcov --remove coverage.info '/usr/*' '*/third-party/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
+          lcov --list coverage.info
 
-  windows:
-    name: Windows ${{ matrix.compiler }}
-    runs-on: windows-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - compiler: gcc
-            package: mingw-w64-ucrt-x86_64-gcc
-            cc: gcc
-            cxx: g++
-          - compiler: clang
-            package: mingw-w64-ucrt-x86_64-clang
-            cc: clang
-            cxx: clang++
-
-    defaults:
-      run:
-        shell: msys2 {0}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
+      - name: Upload coverage to Coveralls
+        if: matrix.os == 'ubuntu-latest' && matrix.cxx == 'g++'
+        uses: coverallsapp/github-action@v2
         with:
-          msystem: UCRT64
-          update: true
-          install: |
-            git
-            base-devel
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-            ${{ matrix.package }}
-
-      - name: Configure
-        run: |
-          rm -rf _build
-          cmake -S . -B _build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
-
-      - name: Build
-        run: |
-          cmake --build _build --config Release
-
-      - name: Run hello_world
-        run: |
-          ./_build/hello_world_application/hello_world.exe
-
-      - name: Run equation
-        run: |
-          echo "1 2 1" | ./_build/solver_application/equation.exe
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: coverage.info
