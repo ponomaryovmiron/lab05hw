@@ -73,8 +73,8 @@ jobs:
       - name: Generate coverage report
         if: matrix.os == 'ubuntu-22.04' && matrix.cxx == 'g++-11'
         run: |
-          lcov --capture --directory build --output-file coverage.info --ignore-errors mismatch --rc geninfo_unexecuted_blocks=1
-          lcov --remove coverage.info '/usr/*' '*/third-party/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
+          lcov --capture --directory build --output-file coverage.info --rc geninfo_unexecuted_blocks=1
+          lcov --remove coverage.info '/usr/*' '*/third-party/*' '*/tests/*' --output-file coverage.info
           lcov --list coverage.info
 
       - name: Upload coverage to Coveralls
